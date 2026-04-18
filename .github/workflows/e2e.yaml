@@ -10,6 +10,8 @@ on:
 jobs:
   e2e:
     runs-on: self-hosted
+    env:
+      BASH_ENV: ${{ github.workspace }}/.github/bash_env_timestamp.sh
     steps:
       - uses: actions/checkout@v2
 

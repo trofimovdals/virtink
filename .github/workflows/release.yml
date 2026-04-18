@@ -8,11 +8,13 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      BASH_ENV: ${{ github.workspace }}/.github/bash_env_timestamp.sh
     steps:
-      - id: get_version
-        run: echo ::set-output name=version::${GITHUB_REF/refs\/tags\//}
-
       - uses: actions/checkout@v2
+
+      - id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@v2
 

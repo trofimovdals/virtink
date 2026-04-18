@@ -1,13 +1,13 @@
 name: build
 
 on:
+  push:
   pull_request:
     types:
+      - opened
       - reopened
       - synchronize
       - ready_for_review
-      - labeled
-      - unlabeled
   workflow_dispatch:
     inputs:
       image_tag:
@@ -20,8 +20,10 @@ permissions:
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && contains(github.event.pull_request.labels.*.name, 'build') && (github.event.action != 'labeled' || github.event.label.name == 'build') && (github.event.action != 'unlabeled' || github.event.label.name == 'build'))
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      BASH_ENV: ${{ github.workspace }}/.github/bash_env_timestamp.sh
     steps:
       - uses: actions/checkout@v4
 

@@ -69,36 +69,26 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push virt-prerunner
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: build/virt-prerunner/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          provenance: false
-          push: true
-          tags: ${{ steps.meta.outputs.prerunner_image }}
+        shell: bash
+        run: |
+          ./hack/build-and-push-image.sh \
+            --file build/virt-prerunner/Dockerfile \
+            --tag "${{ steps.meta.outputs.prerunner_image }}"
 
       - name: Build and push virt-controller
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: build/virt-controller/Dockerfile
-          build-args: |
-            PRERUNNER_IMAGE=${{ steps.meta.outputs.prerunner_image }}
-          platforms: linux/amd64,linux/arm64
-          provenance: false
-          push: true
-          tags: ${{ steps.meta.outputs.controller_image }}
+        shell: bash
+        run: |
+          ./hack/build-and-push-image.sh \
+            --file build/virt-controller/Dockerfile \
+            --build-arg "PRERUNNER_IMAGE=${{ steps.meta.outputs.prerunner_image }}" \
+            --tag "${{ steps.meta.outputs.controller_image }}"
 
       - name: Build and push virt-daemon
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: build/virt-daemon/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          provenance: false
-          push: true
-          tags: ${{ steps.meta.outputs.daemon_image }}
+        shell: bash
+        run: |
+          ./hack/build-and-push-image.sh \
+            --file build/virt-daemon/Dockerfile \
+            --tag "${{ steps.meta.outputs.daemon_image }}"
 
       - name: Download skaffold
         shell: bash

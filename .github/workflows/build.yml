@@ -16,7 +16,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
   packages: write
 
 jobs:
@@ -25,26 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Clear status labels
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            for (const name of ['build/success', 'build/failure']) {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: context.payload.pull_request.number,
-                  name,
-                });
-              } catch (error) {
-                if (error.status !== 404) {
-                  throw error;
-                }
-              }
-            }
 
       - id: meta
         name: Prepare image metadata
@@ -154,27 +133,3 @@ jobs:
           path: |
             virtink.yaml
             build-info.md
-
-      - name: Add success label
-        if: success() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              labels: ['build/success'],
-            });
-
-      - name: Add failure label
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              labels: ['build/failure'],
-            });

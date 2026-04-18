@@ -1,19 +1,129 @@
 name: build
 
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional tag for published images
+        required: false
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    env:
+      BASH_ENV: ${{ github.workspace }}/.github/bash_env_timestamp.sh
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v2
+      - id: meta
+        name: Prepare image metadata
+        shell: bash
+        run: |
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          raw_tag="${{ github.event.inputs.image_tag }}"
+          event_name="${GITHUB_EVENT_NAME}"
+
+          if [ -z "$raw_tag" ]; then
+            if [ "$event_name" = "pull_request" ]; then
+              pr_number="${{ github.event.pull_request.number }}"
+              raw_tag="pr${pr_number}"
+            elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+              raw_tag="${GITHUB_REF_NAME}"
+            else
+              raw_tag="sha-${GITHUB_SHA::7}"
+            fi
+          fi
+
+          tag="$(echo "$raw_tag" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9._-]/-/g')"
+          registry="ghcr.io/${owner}"
+
+          echo "owner=${owner}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "registry=${registry}" >> "$GITHUB_OUTPUT"
+          echo "prerunner_image=${registry}/virt-prerunner:${tag}" >> "$GITHUB_OUTPUT"
+          echo "controller_image=${registry}/virt-controller:${tag}" >> "$GITHUB_OUTPUT"
+          echo "daemon_image=${registry}/virt-daemon:${tag}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
         with:
-          go-version: 1.25.1
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: make test
+      - name: Build and push virt-prerunner
+        shell: bash
+        run: |
+          ./hack/build-and-push-image.sh \
+            --file build/virt-prerunner/Dockerfile \
+            --tag "${{ steps.meta.outputs.prerunner_image }}"
 
-      - uses: codecov/codecov-action@v2
+      - name: Build and push virt-controller
+        shell: bash
+        run: |
+          ./hack/build-and-push-image.sh \
+            --file build/virt-controller/Dockerfile \
+            --build-arg "PRERUNNER_IMAGE=${{ steps.meta.outputs.prerunner_image }}" \
+            --tag "${{ steps.meta.outputs.controller_image }}"
+
+      - name: Build and push virt-daemon
+        shell: bash
+        run: |
+          ./hack/build-and-push-image.sh \
+            --file build/virt-daemon/Dockerfile \
+            --tag "${{ steps.meta.outputs.daemon_image }}"
+
+      - name: Download skaffold
+        shell: bash
+        run: |
+          curl -sLo /tmp/skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          chmod +x /tmp/skaffold
+
+      - name: Render manifest
+        shell: bash
+        env:
+          SKAFFOLD: /tmp/skaffold
+          CONTROLLER_IMAGE: ${{ steps.meta.outputs.controller_image }}
+          DAEMON_IMAGE: ${{ steps.meta.outputs.daemon_image }}
+          PRERUNNER_IMAGE: ${{ steps.meta.outputs.prerunner_image }}
+        run: |
+          ./hack/render-manifest.sh > virtink.yaml
+
+      - name: Write build summary
+        shell: bash
+        run: |
+          {
+            echo "# Test build"
+            echo
+            echo "Controller image: \`${{ steps.meta.outputs.controller_image }}\`"
+            echo
+            echo "Daemon image: \`${{ steps.meta.outputs.daemon_image }}\`"
+            echo
+            echo "Prerunner image: \`${{ steps.meta.outputs.prerunner_image }}\`"
+            echo
+            echo "Manifest artifact: \`virtink.yaml\`"
+          } > build-info.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: virtink-${{ steps.meta.outputs.tag }}
+          path: |
+            virtink.yaml
+            build-info.md

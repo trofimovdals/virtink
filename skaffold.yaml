@@ -1,4 +1,4 @@
-apiVersion: skaffold/v2beta28
+apiVersion: skaffold/v4beta13
 kind: Config
 metadata:
   name: virtink
@@ -18,7 +18,7 @@ build:
     - image: virt-prerunner
       docker:
         dockerfile: build/virt-prerunner/Dockerfile
-deploy:
+manifests:
   kustomize:
     paths:
       - deploy

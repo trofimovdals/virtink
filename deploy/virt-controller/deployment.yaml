@@ -16,6 +16,9 @@ spec:
       containers:
         - name: virt-controller
           image: virt-controller
+          env:
+            - name: PRERUNNER_IMAGE
+              value: virt-prerunner
           args:
             - --zap-time-encoding=iso8601
             - --leader-elect

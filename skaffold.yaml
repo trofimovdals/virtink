@@ -18,7 +18,7 @@ build:
     - image: virt-prerunner
       docker:
         dockerfile: build/virt-prerunner/Dockerfile
-deploy:
+manifests:
   kustomize:
     paths:
       - deploy

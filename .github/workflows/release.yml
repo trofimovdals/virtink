@@ -31,7 +31,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
 
-      - uses: docker/build-push-action@v2
+      - id: build_virt_controller
+        uses: docker/build-push-action@v2
         with:
           file: build/virt-controller/Dockerfile
           build-args: PRERUNNER_IMAGE=smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_prerunner.outputs.digest }}
@@ -39,7 +40,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
 
-      - uses: docker/build-push-action@v2
+      - id: build_virt_daemon
+        uses: docker/build-push-action@v2
         with:
           file: build/virt-daemon/Dockerfile
           tags: smartxworks/virt-daemon:${{ steps.get_version.outputs.version }}
@@ -67,10 +69,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
 
-      - run: |
+      - env:
+          SKAFFOLD: /tmp/skaffold
+          CONTROLLER_IMAGE: smartxworks/virt-controller:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_controller.outputs.digest }}
+          DAEMON_IMAGE: smartxworks/virt-daemon:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_daemon.outputs.digest }}
+          PRERUNNER_IMAGE: smartxworks/virt-prerunner:${{ steps.get_version.outputs.version }}@${{ steps.build_virt_prerunner.outputs.digest }}
+        run: |
           curl -sLo /tmp/skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
           chmod +x /tmp/skaffold
-          /tmp/skaffold render --default-repo=smartxworks --offline=true > virtink.yaml
+          ./hack/render-manifest.sh > virtink.yaml
 
       - uses: softprops/action-gh-release@v1
         with:

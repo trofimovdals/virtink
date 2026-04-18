@@ -104,13 +104,13 @@ jobs:
 
       - name: Render manifest
         shell: bash
+        env:
+          SKAFFOLD: /tmp/skaffold
+          CONTROLLER_IMAGE: ${{ steps.meta.outputs.controller_image }}
+          DAEMON_IMAGE: ${{ steps.meta.outputs.daemon_image }}
+          PRERUNNER_IMAGE: ${{ steps.meta.outputs.prerunner_image }}
         run: |
-          /tmp/skaffold render \
-            --offline=true \
-            --default-repo="" \
-            --digest-source=tag \
-            --images "${{ steps.meta.outputs.controller_image }},${{ steps.meta.outputs.daemon_image }}" \
-            > virtink.yaml
+          ./hack/render-manifest.sh > virtink.yaml
 
       - name: Write build summary
         shell: bash

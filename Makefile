@@ -114,7 +114,7 @@ e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait crd nfsservers.nfs.rook.io --for condition=Established
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f test/e2e/config/rook-nfs/
 
-	PATH=$(LOCALBIN):$(PATH) $(SKAFFOLD) render --offline=true --default-repo="" --digest-source=tag --images virt-controller:e2e,virt-daemon:e2e | KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f -
+	SKAFFOLD=$(SKAFFOLD) CONTROLLER_IMAGE=virt-controller:e2e DAEMON_IMAGE=virt-daemon:e2e PRERUNNER_IMAGE=virt-prerunner:e2e ./hack/render-manifest.sh | KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f -
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n virtink-system deployment virt-controller --for condition=Available --timeout -1s
 
 	docker pull smartxworks/virtink-kernel-5.15.12

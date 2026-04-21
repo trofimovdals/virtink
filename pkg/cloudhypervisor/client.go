@@ -571,6 +571,32 @@ func (c *Client) VmResize(ctx context.Context, arg *VmResize) error {
 	return nil
 }
 
+// Resize a disk
+func (c *Client) VmResizeDisk(ctx context.Context, arg *VmResizeDisk) error {
+	reqBody, err := json.Marshal(arg)
+	if err != nil {
+		return fmt.Errorf("encode request: %s", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "PUT", "http://localhost/api/v1/vm.resize-disk", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return fmt.Errorf("build request: %s", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("do request: %s", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("request failed: %d %s: %s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
+	}
+
+	return nil
+}
+
 // Resize a memory zone
 func (c *Client) VmResizeZone(ctx context.Context, arg *VmResizeZone) error {
 	reqBody, err := json.Marshal(arg)
@@ -826,6 +852,7 @@ type CpusConfig struct {
 	KvmHyperv   bool           `json:"kvm_hyperv,omitempty"`
 	MaxPhysBits int            `json:"max_phys_bits,omitempty"`
 	MaxVcpus    int            `json:"max_vcpus"`
+	Nested      bool           `json:"nested,omitempty"`
 	Topology    *CpuTopology   `json:"topology,omitempty"`
 }
 
@@ -851,11 +878,13 @@ type DeviceNode struct {
 }
 
 type DiskConfig struct {
+	BackingFiles      bool                 `json:"backing_files,omitempty"`
 	Direct            bool                 `json:"direct,omitempty"`
 	Id                string               `json:"id,omitempty"`
+	ImageType         string               `json:"image_type,omitempty"`
 	Iommu             bool                 `json:"iommu,omitempty"`
 	NumQueues         int                  `json:"num_queues,omitempty"`
-	Path              string               `json:"path"`
+	Path              string               `json:"path,omitempty"`
 	PciSegment        int16                `json:"pci_segment,omitempty"`
 	QueueAffinity     []*VirtQueueAffinity `json:"queue_affinity,omitempty"`
 	QueueSize         int                  `json:"queue_size,omitempty"`
@@ -863,6 +892,7 @@ type DiskConfig struct {
 	RateLimiterConfig *RateLimiterConfig   `json:"rate_limiter_config,omitempty"`
 	Readonly          bool                 `json:"readonly,omitempty"`
 	Serial            string               `json:"serial,omitempty"`
+	Sparse            bool                 `json:"sparse,omitempty"`
 	VhostSocket       string               `json:"vhost_socket,omitempty"`
 	VhostUser         bool                 `json:"vhost_user,omitempty"`
 }
@@ -918,6 +948,9 @@ type NetConfig struct {
 	Mask              string             `json:"mask,omitempty"`
 	Mtu               int                `json:"mtu,omitempty"`
 	NumQueues         int                `json:"num_queues,omitempty"`
+	OffloadCsum       bool               `json:"offload_csum,omitempty"`
+	OffloadTso        bool               `json:"offload_tso,omitempty"`
+	OffloadUfo        bool               `json:"offload_ufo,omitempty"`
 	PciSegment        int16              `json:"pci_segment,omitempty"`
 	QueueSize         int                `json:"queue_size,omitempty"`
 	RateLimiterConfig *RateLimiterConfig `json:"rate_limiter_config,omitempty"`
@@ -928,12 +961,12 @@ type NetConfig struct {
 }
 
 type NumaConfig struct {
-	Cpus           []int           `json:"cpus,omitempty"`
-	Distances      []*NumaDistance `json:"distances,omitempty"`
-	GuestNumaId    int             `json:"guest_numa_id"`
-	MemoryZones    []string        `json:"memory_zones,omitempty"`
-	PciSegments    []int           `json:"pci_segments,omitempty"`
-	SgxEpcSections []string        `json:"sgx_epc_sections,omitempty"`
+	Cpus        []int           `json:"cpus,omitempty"`
+	DeviceId    string          `json:"device_id,omitempty"`
+	Distances   []*NumaDistance `json:"distances,omitempty"`
+	GuestNumaId int             `json:"guest_numa_id"`
+	MemoryZones []string        `json:"memory_zones,omitempty"`
+	PciSegments []int           `json:"pci_segments,omitempty"`
 }
 
 type NumaDistance struct {
@@ -945,6 +978,8 @@ type NumaDistance struct {
 type PayloadConfig struct {
 	Cmdline   string `json:"cmdline,omitempty"`
 	Firmware  string `json:"firmware,omitempty"`
+	HostData  string `json:"host_data,omitempty"`
+	Igvm      string `json:"igvm,omitempty"`
 	Initramfs string `json:"initramfs,omitempty"`
 	Kernel    string `json:"kernel,omitempty"`
 }
@@ -962,12 +997,14 @@ type PciSegmentConfig struct {
 }
 
 type PlatformConfig struct {
-	IommuSegments  []int16  `json:"iommu_segments,omitempty"`
-	NumPciSegments int16    `json:"num_pci_segments,omitempty"`
-	OemStrings     []string `json:"oem_strings,omitempty"`
-	SerialNumber   string   `json:"serial_number,omitempty"`
-	Tdx            bool     `json:"tdx,omitempty"`
-	Uuid           string   `json:"uuid,omitempty"`
+	IommuAddressWidth int      `json:"iommu_address_width,omitempty"`
+	IommuSegments     []int16  `json:"iommu_segments,omitempty"`
+	NumPciSegments    int16    `json:"num_pci_segments,omitempty"`
+	OemStrings        []string `json:"oem_strings,omitempty"`
+	SerialNumber      string   `json:"serial_number,omitempty"`
+	SevSnp            bool     `json:"sev_snp,omitempty"`
+	Tdx               bool     `json:"tdx,omitempty"`
+	Uuid              string   `json:"uuid,omitempty"`
 }
 
 type PmemConfig struct {
@@ -1007,12 +1044,6 @@ type RngConfig struct {
 type SendMigrationData struct {
 	DestinationUrl string `json:"destination_url"`
 	Local          bool   `json:"local,omitempty"`
-}
-
-type SgxEpcConfig struct {
-	Id       string `json:"id"`
-	Prefault bool   `json:"prefault,omitempty"`
-	Size     int64  `json:"size"`
 }
 
 // Defines a token bucket with a maximum capacity (_size_), an initial burst size (_one_time_burst_) and an interval for refilling purposes (_refill_time_). The refill-rate is derived from _size_ and _refill_time_, and it is the constant rate at which the tokens replenish. The refill process only starts happening after the initial burst budget is consumed. Consumption from the token bucket is unbounded in speed which allows for bursts bound in size by the amount of tokens available. Once the token bucket is empty, consumption speed is bound by the refill-rate.
@@ -1066,7 +1097,6 @@ type VmConfig struct {
 	RateLimitGroups []*RateLimitGroupConfig `json:"rate_limit_groups,omitempty"`
 	Rng             *RngConfig              `json:"rng,omitempty"`
 	Serial          *ConsoleConfig          `json:"serial,omitempty"`
-	SgxEpc          []*SgxEpcConfig         `json:"sgx_epc,omitempty"`
 	Tpm             *TpmConfig              `json:"tpm,omitempty"`
 	Vdpa            []*VdpaConfig           `json:"vdpa,omitempty"`
 	Vsock           *VsockConfig            `json:"vsock,omitempty"`
@@ -1096,6 +1126,11 @@ type VmResize struct {
 	DesiredBalloon int64 `json:"desired_balloon,omitempty"`
 	DesiredRam     int64 `json:"desired_ram,omitempty"`
 	DesiredVcpus   int   `json:"desired_vcpus,omitempty"`
+}
+
+type VmResizeDisk struct {
+	DesiredSize int64  `json:"desired_size,omitempty"`
+	Id          string `json:"id,omitempty"`
 }
 
 type VmResizeZone struct {

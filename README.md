@@ -26,9 +26,9 @@ Virtink consists of 3 components:
 
 A few requirements need to be met before you can begin:
 
-- Kubernetes cluster v1.16 ~ v1.25
+- Kubernetes cluster v1.32 ~ v1.35
 - Kubernetes apiserver must have `--allow-privileged=true` in order to run Virtink's privileged DaemonSet. It's usually set by default.
-- [cert-manager](https://cert-manager.io/) v1.0 ~ v1.8 installed in Kubernetes cluster. You can install it with `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml`.
+- [cert-manager](https://cert-manager.io/) v1.19 ~ v1.20 installed in Kubernetes cluster. You can install it with `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.20.2/cert-manager.yaml`.
 
 #### Container Runtime Support
 

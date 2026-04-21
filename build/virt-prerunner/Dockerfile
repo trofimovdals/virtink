@@ -6,11 +6,13 @@ WORKDIR /workspace
 
 COPY go.mod go.mod
 COPY go.sum go.sum
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY cmd/ cmd/
 COPY pkg/ pkg/
-RUN --mount=type=cache,target=/root/.cache/go-build go build -a cmd/virt-prerunner/main.go
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build cmd/virt-prerunner/main.go
 
 FROM alpine:3.22.1
 
@@ -20,14 +22,14 @@ RUN set -eux; \
     mkdir /var/lib/cloud-hypervisor; \
     case "$(uname -m)" in \
         'x86_64') \
-            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v42.0/cloud-hypervisor-static; \
-            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v42.0/ch-remote-static; \
-            curl -sLo /var/lib/cloud-hypervisor/hypervisor-fw https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.4.0/hypervisor-fw; \
+            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v51.1/cloud-hypervisor-static; \
+            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v51.1/ch-remote-static; \
+            curl -sLo /var/lib/cloud-hypervisor/hypervisor-fw https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.5.0/hypervisor-fw; \
             ;; \
         'aarch64') \
-            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v42.0/cloud-hypervisor-static-aarch64; \
-            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v42.0/ch-remote-static-aarch64; \
-            curl -sLo /var/lib/cloud-hypervisor/CLOUDHV_EFI.fd https://github.com/smartxworks/cloud-hypervisor-edk2-builder/releases/download/20220706/CLOUDHV_EFI.fd; \
+            curl -sLo /usr/bin/cloud-hypervisor https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v51.1/cloud-hypervisor-static-aarch64; \
+            curl -sLo /usr/bin/ch-remote https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/v51.1/ch-remote-static-aarch64; \
+            curl -sLo /var/lib/cloud-hypervisor/hypervisor-fw-aarch64 https://github.com/cloud-hypervisor/rust-hypervisor-firmware/releases/download/0.5.0/hypervisor-fw-aarch64; \
             ;; \
         *) echo >&2 "error: unsupported architecture '$(uname -m)'"; exit 1 ;; \
     esac; \

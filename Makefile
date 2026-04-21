@@ -8,6 +8,14 @@ KUTTL ?= $(LOCALBIN)/kuttl
 KUBECTL ?= $(LOCALBIN)/kubectl
 GOARCH ?= $(shell go env GOARCH)
 GOOS ?= $(shell go env GOOS)
+KIND_VERSION ?= v0.31.0
+KIND_NODE_IMAGE ?= kindest/node:v1.34.3@sha256:08497ee19eace7b4b5348db5c6a1591d7752b164530a36f855cb0f2bdcbadd48
+KUBECTL_VERSION ?= v1.34.6
+CERT_MANAGER_VERSION ?= v1.20.2
+CMCTL_VERSION ?= v2.3.0
+CALICO_VERSION ?= v3.31.3
+CDI_VERSION ?= v1.63.1
+KUTTL_VERSION ?= v0.25.0
 
 all: test
 
@@ -34,17 +42,17 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: kind
 kind: $(KIND)
 $(KIND): $(LOCALBIN)
-	curl -sLo $(KIND) https://kind.sigs.k8s.io/dl/v0.14.0/kind-$(GOOS)-$(GOARCH) && chmod +x $(KIND)
+	curl -sLo $(KIND) https://kind.sigs.k8s.io/dl/$(KIND_VERSION)/kind-$(GOOS)-$(GOARCH) && chmod +x $(KIND)
 
 .PHONY: kubectl
 kubectl: $(KUBECTL)
 $(KUBECTL): $(LOCALBIN)
-	curl -sLo $(KUBECTL) https://dl.k8s.io/release/v1.24.0/bin/$(GOOS)/$(GOARCH)/kubectl && chmod +x $(KUBECTL)
+	curl -sLo $(KUBECTL) https://dl.k8s.io/release/$(KUBECTL_VERSION)/bin/$(GOOS)/$(GOARCH)/kubectl && chmod +x $(KUBECTL)
 
 .PHONY: cmctl
 cmctl: $(CMCTL)
 $(CMCTL): $(LOCALBIN)
-	curl -sLo cmctl.tar.gz https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cmctl-$(GOOS)-$(GOARCH).tar.gz
+	curl -fsSL -o cmctl.tar.gz https://github.com/cert-manager/cmctl/releases/download/$(CMCTL_VERSION)/cmctl_$(GOOS)_$(GOARCH).tar.gz
 	tar xzf cmctl.tar.gz -C $(LOCALBIN)
 	rm -rf cmctl.tar.gz
 
@@ -56,7 +64,7 @@ $(SKAFFOLD): $(LOCALBIN)
 .PHONY: kuttl
 kuttl: $(KUTTL)
 $(KUTTL): $(LOCALBIN)
-	curl -sLo $(KUTTL) https://github.com/kudobuilder/kuttl/releases/download/v0.12.1/kubectl-kuttl_0.12.1_$(GOOS)_$(shell uname -m) && chmod +x $(KUTTL)
+	curl -sLo $(KUTTL) https://github.com/kudobuilder/kuttl/releases/download/$(KUTTL_VERSION)/kubectl-kuttl_$(patsubst v%,%,$(KUTTL_VERSION))_$(GOOS)_$(shell uname -m) && chmod +x $(KUTTL)
 
 E2E_KIND_CLUSTER_NAME := virtink-e2e-$(shell date "+%Y-%m-%d-%H-%M-%S")
 E2E_KIND_CLUSTER_KUBECONFIG := /tmp/$(E2E_KIND_CLUSTER_NAME).kubeconfig
@@ -70,42 +78,42 @@ e2e-image:
 e2e: kind kubectl cmctl skaffold kuttl e2e-image
 	echo "e2e kind cluster: $(E2E_KIND_CLUSTER_NAME)"
 
-	$(KIND) create cluster --config test/e2e/config/kind/config.yaml --name $(E2E_KIND_CLUSTER_NAME) --kubeconfig $(E2E_KIND_CLUSTER_KUBECONFIG)
+	$(KIND) create cluster --config test/e2e/config/kind/config.yaml --image $(KIND_NODE_IMAGE) --name $(E2E_KIND_CLUSTER_NAME) --kubeconfig $(E2E_KIND_CLUSTER_KUBECONFIG)
 	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-controller:e2e
 	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-daemon:e2e
 	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) virt-prerunner:e2e
 
-	docker pull docker.io/calico/cni:v3.23.5
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/cni:v3.23.5
-	docker pull docker.io/calico/node:v3.23.5
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/node:v3.23.5
-	docker pull docker.io/calico/kube-controllers:v3.23.5
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/kube-controllers:v3.23.5
-	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://projectcalico.docs.tigera.io/archive/v3.23/manifests/calico.yaml
+	docker pull docker.io/calico/cni:$(CALICO_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/cni:$(CALICO_VERSION)
+	docker pull docker.io/calico/node:$(CALICO_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/node:$(CALICO_VERSION)
+	docker pull docker.io/calico/kube-controllers:$(CALICO_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) docker.io/calico/kube-controllers:$(CALICO_VERSION)
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://projectcalico.docs.tigera.io/archive/$(CALICO_VERSION)/manifests/calico.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n kube-system deployment calico-kube-controllers --for condition=Available --timeout -1s
 
-	docker pull quay.io/jetstack/cert-manager-controller:v1.8.2
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-controller:v1.8.2
-	docker pull quay.io/jetstack/cert-manager-cainjector:v1.8.2
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-cainjector:v1.8.2
-	docker pull quay.io/jetstack/cert-manager-webhook:v1.8.2
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-webhook:v1.8.2
-	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.8.2/cert-manager.yaml
+	docker pull quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-controller:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-cainjector:$(CERT_MANAGER_VERSION)
+	docker pull quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/jetstack/cert-manager-webhook:$(CERT_MANAGER_VERSION)
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/cert-manager/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(CMCTL) check api --wait=10m
 
-	docker pull quay.io/kubevirt/cdi-operator:v1.53.0
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-operator:v1.53.0
-	docker pull quay.io/kubevirt/cdi-apiserver:v1.53.0
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-apiserver:v1.53.0
-	docker pull  quay.io/kubevirt/cdi-controller:v1.53.0
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-controller:v1.53.0
-	docker pull quay.io/kubevirt/cdi-uploadproxy:v1.53.0
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-uploadproxy:v1.53.0
-	docker pull quay.io/kubevirt/cdi-importer:v1.53.0
-	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-importer:v1.53.0
-	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/v1.53.0/cdi-operator.yaml
+	docker pull quay.io/kubevirt/cdi-operator:$(CDI_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-operator:$(CDI_VERSION)
+	docker pull quay.io/kubevirt/cdi-apiserver:$(CDI_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-apiserver:$(CDI_VERSION)
+	docker pull quay.io/kubevirt/cdi-controller:$(CDI_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-controller:$(CDI_VERSION)
+	docker pull quay.io/kubevirt/cdi-uploadproxy:$(CDI_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-uploadproxy:$(CDI_VERSION)
+	docker pull quay.io/kubevirt/cdi-importer:$(CDI_VERSION)
+	$(KIND) load docker-image --name $(E2E_KIND_CLUSTER_NAME) quay.io/kubevirt/cdi-importer:$(CDI_VERSION)
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/$(CDI_VERSION)/cdi-operator.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait -n cdi deployment cdi-operator --for condition=Available --timeout -1s
-	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/v1.53.0/cdi-cr.yaml
+	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) apply -f https://github.com/kubevirt/containerized-data-importer/releases/download/$(CDI_VERSION)/cdi-cr.yaml
 	KUBECONFIG=$(E2E_KIND_CLUSTER_KUBECONFIG) $(KUBECTL) wait cdi.cdi.kubevirt.io cdi --for condition=Available --timeout -1s
 
 	docker pull rook/nfs:master

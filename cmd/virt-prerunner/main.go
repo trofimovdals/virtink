@@ -94,7 +94,7 @@ func buildVMConfig(ctx context.Context, vm *virtv1alpha1.VirtualMachine) (*cloud
 	}
 
 	if runtime.GOARCH == "arm64" {
-		vmConfig.Payload.Kernel = "/var/lib/cloud-hypervisor/CLOUDHV_EFI.fd"
+		vmConfig.Payload.Kernel = "/var/lib/cloud-hypervisor/hypervisor-fw-aarch64"
 	}
 
 	if vm.Spec.Instance.Kernel != nil {

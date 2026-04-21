@@ -68,27 +68,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push virt-prerunner
+      - name: Build and push images
         shell: bash
         run: |
+          set -euo pipefail
+
           ./hack/build-and-push-image.sh \
             --file build/virt-prerunner/Dockerfile \
-            --tag "${{ steps.meta.outputs.prerunner_image }}"
+            --tag "${{ steps.meta.outputs.prerunner_image }}" &
+          prerunner_pid=$!
 
-      - name: Build and push virt-controller
-        shell: bash
-        run: |
           ./hack/build-and-push-image.sh \
             --file build/virt-controller/Dockerfile \
             --build-arg "PRERUNNER_IMAGE=${{ steps.meta.outputs.prerunner_image }}" \
-            --tag "${{ steps.meta.outputs.controller_image }}"
+            --tag "${{ steps.meta.outputs.controller_image }}" &
+          controller_pid=$!
 
-      - name: Build and push virt-daemon
-        shell: bash
-        run: |
           ./hack/build-and-push-image.sh \
             --file build/virt-daemon/Dockerfile \
-            --tag "${{ steps.meta.outputs.daemon_image }}"
+            --tag "${{ steps.meta.outputs.daemon_image }}" &
+          daemon_pid=$!
+
+          wait "${prerunner_pid}"
+          wait "${controller_pid}"
+          wait "${daemon_pid}"
 
       - name: Download skaffold
         shell: bash

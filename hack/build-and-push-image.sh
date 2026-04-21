@@ -7,6 +7,7 @@ dockerfile=""
 tag=""
 platforms="linux/amd64,linux/arm64"
 metadata_file=""
+cache_scope=""
 build_args=()
 
 while (($# > 0)); do
@@ -29,6 +30,10 @@ while (($# > 0)); do
       ;;
     --metadata-file)
       metadata_file="$2"
+      shift 2
+      ;;
+    --cache-scope)
+      cache_scope="$2"
       shift 2
       ;;
     --build-arg)
@@ -59,6 +64,17 @@ cmd=(
 
 if [[ -n "${metadata_file}" ]]; then
   cmd+=(--metadata-file "${metadata_file}")
+fi
+
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  if [[ -z "${cache_scope}" ]]; then
+    cache_scope="${dockerfile//\//-}"
+    cache_scope="${cache_scope//:/-}"
+    cache_scope="${cache_scope//@/-}"
+    cache_scope="${cache_scope//./-}"
+  fi
+  cmd+=(--cache-from "type=gha,scope=${cache_scope}")
+  cmd+=(--cache-to "type=gha,mode=max,scope=${cache_scope}")
 fi
 
 cmd+=("${build_args[@]}")
